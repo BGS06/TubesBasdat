@@ -1,79 +1,146 @@
+-- Query Sederhana 1: Menampilkan semua data peserta dengan tingkat keterampilan Lanjutan
 SELECT 
-    p.ID_Peserta,
-    p.Nama,
-    p.No_Telepon,
-    p.Alamat,
-    p.Tingkat_Keterampilan,
-    k.Tanggal as Tanggal_Kursus,
-    i.Nama_Instruktur,
-    kend.Plat_Nomor,
-    kend.Merek,
-    kend.Model,
-    pay.Jumlah as Biaya_Kursus,
-    pay.Status_Pembayaran,
-    a.Status_Absensi
-FROM Peserta p
-LEFT JOIN Kursus k ON p.ID_Peserta = k.ID_Peserta
-LEFT JOIN Instruktur i ON k.ID_Instruktur = i.ID_Instruktur
-LEFT JOIN Kendaraan kend ON k.ID_Kendaraan = kend.ID_Kendaraan
-LEFT JOIN Pembayaran pay ON k.ID_Pembayaran = pay.ID_Pembayaran
-LEFT JOIN Absensi a ON p.ID_Peserta = a.ID_Peserta
-ORDER BY p.ID_Peserta;
+    id_peserta,
+    nama,
+    no_telepon,
+    alamat,
+    tingkat_keterampilan,
+    tanggal_mengikuti
+FROM peserta 
+WHERE tingkat_keterampilan = 'Lanjutan'
+ORDER BY nama;
 
--- Query 2: Menampilkan statistik tingkat keterampilan peserta
+-- Query Sederhana 2: Menampilkan semua mobil dengan merek Honda
 SELECT 
-    Tingkat_Keterampilan,
-    COUNT(*) as Jumlah_Peserta,
-    AVG(pay.Jumlah) as Rata_Rata_Biaya
-FROM Peserta p
-JOIN Pembayaran pay ON p.ID_Peserta = pay.ID_Peserta
-GROUP BY Tingkat_Keterampilan
-ORDER BY Jumlah_Peserta DESC;
+    id_mobil,
+    plat_nomor,
+    merek,
+    model
+FROM mobil 
+WHERE merek = 'Honda'
+ORDER BY id_mobil;
 
--- Query 3: Menampilkan laporan kehadiran peserta
+-- Query Complex 1: Menampilkan statistik pembayaran per tingkat keterampilan dengan subquery
 SELECT 
-    p.ID_Peserta,
-    p.Nama,
-    COUNT(a.ID_Absensi) as Total_Pertemuan,
-    SUM(CASE WHEN a.Status_Absensi = 'Hadir' THEN 1 ELSE 0 END) as Hadir,
-    SUM(CASE WHEN a.Status_Absensi = 'Tidak Hadir' THEN 1 ELSE 0 END) as Tidak_Hadir,
-    ROUND((SUM(CASE WHEN a.Status_Absensi = 'Hadir' THEN 1 ELSE 0 END) * 100.0 / COUNT(a.ID_Absensi)), 2) as Persentase_Kehadiran
-FROM Peserta p
-LEFT JOIN Absensi a ON p.ID_Peserta = a.ID_Peserta
-GROUP BY p.ID_Peserta, p.Nama
-ORDER BY Persentase_Kehadiran DESC;
+    p.tingkat_keterampilan,
+    COUNT(*) as jumlah_peserta,
+    AVG(pb.jumlah) as rata_rata_pembayaran,
+    SUM(pb.jumlah) as total_pendapatan,
+    MIN(pb.jumlah) as pembayaran_minimum,
+    MAX(pb.jumlah) as pembayaran_maximum
+FROM peserta p
+JOIN pembayaran pb ON p.id_peserta = pb.id_peserta
+WHERE pb.jumlah >= (
+    SELECT AVG(jumlah) * 0.8
+    FROM pembayaran
+)
+GROUP BY p.tingkat_keterampilan
+HAVING COUNT(*) > 5
+ORDER BY total_pendapatan DESC;
 
--- Query 4: Menampilkan laporan kinerja instruktur
+-- Query Complex 2: Menampilkan instruktur dengan performa terbaik berdasarkan tingkat kehadiran
 SELECT 
-    i.ID_Instruktur,
-    i.Nama_Instruktur,
-    i.No_Telepon_Instruktur,
-    COUNT(k.ID_Kursus) as Total_Kursus_Diajar,
-    COUNT(DISTINCT k.ID_Peserta) as Jumlah_Peserta_Unik
-FROM Instruktur i
-LEFT JOIN Kursus k ON i.ID_Instruktur = k.ID_Instruktur
-GROUP BY i.ID_Instruktur, i.Nama_Instruktur, i.No_Telepon_Instruktur
-ORDER BY Total_Kursus_Diajar DESC;
+    i.nama_instruktur,
+    i.pengalaman,
+    COUNT(p.id_peserta) as total_peserta,
+    COUNT(CASE WHEN a.status_absensi = 'Hadir' THEN 1 END) as peserta_hadir,
+    COUNT(CASE WHEN a.status_absensi = 'Tidak Hadir' THEN 1 END) as peserta_tidak_hadir,
+    ROUND(
+        (COUNT(CASE WHEN a.status_absensi = 'Hadir' THEN 1 END) * 100.0 / COUNT(p.id_peserta)), 
+        2
+    ) as persentase_kehadiran,
+    SUM(pb.jumlah) as total_pendapatan_yang_dihasilkan
+FROM instruktur i
+JOIN peserta p ON i.id_instruktur = p.id_instruktur
+JOIN absensi a ON p.id_peserta = a.id_peserta
+JOIN pembayaran pb ON p.id_peserta = pb.id_peserta
+WHERE i.id_instruktur IN (
+    SELECT DISTINCT id_instruktur 
+    FROM peserta 
+    GROUP BY id_instruktur 
+    HAVING COUNT(*) >= 5
+)
+GROUP BY i.id_instruktur, i.nama_instruktur, i.pengalaman
+ORDER BY persentase_kehadiran DESC, total_pendapatan_yang_dihasilkan DESC;
 
--- Query 5: Menampilkan laporan penggunaan kendaraan
+-- Query JOIN 1: Menggabungkan 2 table (peserta dan kursus)
 SELECT 
-    kend.ID_Kendaraan,
-    kend.Plat_Nomor,
-    kend.Merek,
-    kend.Model,
-    COUNT(k.ID_Kursus) as Frekuensi_Penggunaan
-FROM Kendaraan kend
-LEFT JOIN Kursus k ON kend.ID_Kendaraan = k.ID_Kendaraan
-GROUP BY kend.ID_Kendaraan, kend.Plat_Nomor, kend.Merek, kend.Model
-ORDER BY Frekuensi_Penggunaan DESC;
+    p.id_peserta,
+    p.nama as nama_peserta,
+    p.tingkat_keterampilan,
+    k.nama_kursus,
+    k.jadwal,
+    p.tanggal_mengikuti
+FROM peserta p
+JOIN kursus k ON p.id_kursus = k.id_kursus
+WHERE p.tingkat_keterampilan IN ('Menengah', 'Lanjutan')
+ORDER BY k.nama_kursus, p.nama;
 
--- Query 6: Menampilkan laporan pembayaran bulanan
+-- Query JOIN 2: Menggabungkan 5 table (peserta, kursus, instruktur, mobil, pembayaran)
 SELECT 
-    MONTH(Tanggal) as Bulan,
-    YEAR(Tanggal) as Tahun,
-    COUNT(*) as Jumlah_Pembayaran,
-    SUM(Jumlah) as Total_Pendapatan,
-    AVG(Jumlah) as Rata_Rata_Pembayaran
-FROM Pembayaran
-GROUP BY YEAR(Tanggal), MONTH(Tanggal)
-ORDER BY Tahun, Bulan;
+    p.id_peserta,
+    p.nama as nama_peserta,
+    p.tingkat_keterampilan,
+    k.nama_kursus,
+    k.jadwal,
+    i.nama_instruktur,
+    i.pengalaman as pengalaman_instruktur,
+    m.plat_nomor,
+    CONCAT(m.merek, ' ', m.model) as kendaraan,
+    p.tanggal_mengikuti,
+    pb.tanggal_pembayaran,
+    pb.jumlah as biaya_kursus,
+    pb.status_pembayaran,
+    DATEDIFF(pb.tanggal_pembayaran, p.tanggal_mengikuti) as selisih_hari_bayar
+FROM peserta p
+JOIN kursus k ON p.id_kursus = k.id_kursus
+JOIN instruktur i ON p.id_instruktur = i.id_instruktur
+JOIN mobil m ON p.id_mobil = m.id_mobil
+JOIN pembayaran pb ON p.id_peserta = pb.id_peserta
+WHERE pb.status_pembayaran = 'Lunas'
+    AND p.tanggal_mengikuti >= '2025-04-01'
+    AND pb.jumlah >= 600000
+ORDER BY p.tanggal_mengikuti DESC, pb.jumlah DESC;
+
+
+-- Query untuk Dashboard/Laporan Manajemen
+SELECT 
+    'Total Peserta' as metrik,
+    COUNT(DISTINCT p.id_peserta) as nilai,
+    NULL as kategori
+FROM peserta p
+
+UNION ALL
+
+SELECT 
+    'Total Pendapatan' as metrik,
+    SUM(pb.jumlah) as nilai,
+    'Rupiah' as kategori
+FROM pembayaran pb
+
+UNION ALL
+
+SELECT 
+    'Rata-rata Kehadiran' as metrik,
+    ROUND(
+        (COUNT(CASE WHEN a.status_absensi = 'Hadir' THEN 1 END) * 100.0 / COUNT(*)), 
+        2
+    ) as nilai,
+    'Persen' as kategori
+FROM absensi a
+
+UNION ALL
+
+SELECT 
+    'Total Kendaraan' as metrik,
+    COUNT(DISTINCT id_mobil) as nilai,
+    'Unit' as kategori
+FROM mobil
+
+ORDER BY 
+    CASE metrik 
+        WHEN 'Total Peserta' THEN 1
+        WHEN 'Total Pendapatan' THEN 2
+        WHEN 'Rata-rata Kehadiran' THEN 3
+        WHEN 'Total Kendaraan' THEN 4
+    END;
